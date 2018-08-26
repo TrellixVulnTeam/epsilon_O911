@@ -1,0 +1,33 @@
+cargo-features = ["edition"]
+
+[package]
+name = "newt"
+version = "0.1.0"
+authors = ["Nicole Mazzuca <npmazzuca@gmail.com>"]
+license = "Apache-2.0"
+edition = "2018"
+
+[dependencies]
+llvm-sys = "60"
+libc = "0.2"
+lazy_static = "1.1"
+
+[profile.dev]
+opt-level = 0
+debug = true
+debug-assertions = true
+panic = "abort"
+lto = false
+codegen-units = 16
+incremental = true
+overflow-checks = true
+
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+panic = "abort"
+lto = true
+codegen-units = 1
+incremental = false
+overflow-checks = true
