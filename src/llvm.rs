@@ -1,8 +1,8 @@
-use llvm_sys::*;
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
+use llvm_sys::*;
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
@@ -21,17 +21,19 @@ macro_rules! cstr {
 }
 
 macro_rules! slice_to_llvm {
-  ($slice:expr, $ty:ty => $underlying:ty) => {{
-    unsafe fn check_size(ty: $ty) {
-      std::mem::transmute::<$ty, $underlying>(ty);
+  ($underlying:ty) => {
+    unsafe fn __slice_to_llvm_check_size(self) {
+      std::mem::transmute::<Self, $underlying>(self);
     }
-    let slice = $slice;
-    debug_assert!(slice.len() <= libc::c_uint::max_value() as usize);
-    (
-      slice.as_ptr() as *mut $ty as *mut $underlying,
-      slice.len() as libc::c_uint,
-    )
-  }};
+
+    fn slice_to_llvm(slice: &[Self]) -> (*mut $underlying, libc::c_uint) {
+      debug_assert!(slice.len() <= libc::c_uint::max_value() as usize);
+      (
+        slice.as_ptr() as *mut Self as *mut $underlying,
+        slice.len() as libc::c_uint,
+      )
+    }
+  };
 }
 
 #[allow(non_upper_case_globals)]
@@ -43,6 +45,7 @@ pub struct Context {
   context: LLVMContextRef,
   triple: *mut libc::c_char,
   target: LLVMTargetRef,
+  target_data: LLVMTargetDataRef,
   target_machine: LLVMTargetMachineRef,
   module: LLVMModuleRef,
 }
@@ -96,15 +99,24 @@ impl Context {
         LLVMCodeModel::LLVMCodeModelDefault,
       );
 
+      let target_data = LLVMCreateTargetDataLayout(target_machine);
+
       let module = LLVMModuleCreateWithNameInContext(cstr!(""), context);
 
       Context {
         context,
         triple,
         target,
+        target_data,
         target_machine,
         module,
       }
+    }
+  }
+
+  pub fn pointer_size(&self) -> libc::c_uint {
+    unsafe {
+      LLVMPointerSize(self.target_data)
     }
   }
 
@@ -113,12 +125,61 @@ impl Context {
       LLVMDumpModule(self.module);
     }
   }
+
+  pub fn write_asm_file<W: std::fmt::Write>(&self, w: &mut W) -> std::fmt::Result {
+    unsafe {
+      let mut buffer: LLVMMemoryBufferRef = std::ptr::null_mut();
+      let mut err: *mut libc::c_char = std::ptr::null_mut();
+      let failed = LLVMTargetMachineEmitToMemoryBuffer(
+        self.target_machine,
+        self.module,
+        LLVMCodeGenFileType::LLVMAssemblyFile,
+        &mut err,
+        &mut buffer,
+      );
+      if failed != 0 {
+        panic!(
+          "Failed to emit object file: {}",
+          CStr::from_ptr(err).to_str().unwrap()
+        );
+      }
+      let ptr = LLVMGetBufferStart(buffer) as *mut u8;
+      let len = LLVMGetBufferSize(buffer) as usize;
+      let string = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap();
+      w.write_str(string)
+    }
+  }
+
+  pub fn write_obj_file<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+    unsafe {
+      let mut buffer: LLVMMemoryBufferRef = std::ptr::null_mut();
+      let mut err: *mut libc::c_char = std::ptr::null_mut();
+      let failed = LLVMTargetMachineEmitToMemoryBuffer(
+        self.target_machine,
+        self.module,
+        LLVMCodeGenFileType::LLVMObjectFile,
+        &mut err,
+        &mut buffer,
+      );
+      if failed != 0 {
+        panic!(
+          "Failed to emit object file: {}",
+          CStr::from_ptr(err).to_str().unwrap()
+        );
+      }
+      let ptr = LLVMGetBufferStart(buffer) as *mut u8;
+      let len = LLVMGetBufferSize(buffer) as usize;
+      let slice = std::slice::from_raw_parts(ptr, len);
+      w.write_all(slice)
+    }
+  }
 }
 
 impl Drop for Context {
   fn drop(&mut self) {
     unsafe {
       LLVMDisposeModule(self.module);
+      LLVMDisposeTargetData(self.target_data);
       LLVMDisposeTargetMachine(self.target_machine);
       LLVMDisposeMessage(self.triple);
       LLVMContextDispose(self.context);
@@ -127,6 +188,7 @@ impl Drop for Context {
 }
 
 #[derive(Copy, Clone)]
+#[repr(transparent)]
 pub struct Type<'a> {
   ty: LLVMTypeRef,
   ctxt: PhantomData<&'a Context>,
@@ -149,6 +211,14 @@ impl<'a> Type<'a> {
       }
     }
   }
+  pub fn size_type(ctxt: &'a Context) -> Self {
+    unsafe {
+      Type {
+        ty: LLVMIntTypeInContext(ctxt.context, ctxt.pointer_size() * 8),
+        ctxt: PhantomData,
+      }
+    }
+  }
   pub fn ptr(to: Type<'a>) -> Self {
     unsafe {
       Type {
@@ -158,9 +228,7 @@ impl<'a> Type<'a> {
     }
   }
 
-  fn slice_to_llvm(slice: &[Type<'a>]) -> (*mut LLVMTypeRef, libc::c_uint) {
-    slice_to_llvm!(slice, Type => LLVMTypeRef)
-  }
+  slice_to_llvm!(LLVMTypeRef);
 }
 
 impl<'a> From<FunctionType<'a>> for Type<'a> {
@@ -170,6 +238,7 @@ impl<'a> From<FunctionType<'a>> for Type<'a> {
 }
 
 #[derive(Copy, Clone)]
+#[repr(transparent)]
 pub struct FunctionType<'a>(Type<'a>);
 
 impl<'a> FunctionType<'a> {
@@ -201,6 +270,7 @@ impl<'a> FunctionType<'a> {
 pub struct Function<'a>(Value<'a>);
 
 #[derive(Copy, Clone)]
+#[repr(transparent)]
 pub struct BasicBlock<'a> {
   bb: LLVMBasicBlockRef,
   ctxt: PhantomData<&'a Context>,
@@ -226,6 +296,7 @@ impl<'a> Function<'a> {
   }
 }
 
+#[repr(transparent)]
 pub struct Builder<'a> {
   builder: LLVMBuilderRef,
   ctxt: PhantomData<&'a Context>,
@@ -265,15 +336,14 @@ impl<'a> Builder<'a> {
 }
 
 #[derive(Copy, Clone)]
+#[repr(transparent)]
 pub struct Value<'a> {
   value: LLVMValueRef,
   ctxt: PhantomData<&'a Context>,
 }
 
 impl<'a> Value<'a> {
-  pub fn slice_to_llvm(slice: &[Value<'a>]) -> (*mut LLVMValueRef, libc::c_uint) {
-    slice_to_llvm!(slice, Value => LLVMValueRef)
-  }
+  slice_to_llvm!(LLVMValueRef);
 }
 
 impl<'a> From<ConstValue<'a>> for Value<'a> {
@@ -288,6 +358,7 @@ impl<'a> From<Function<'a>> for Value<'a> {
 }
 
 #[derive(Copy, Clone)]
+#[repr(transparent)]
 pub struct ConstValue<'a>(Value<'a>);
 
 impl<'a> ConstValue<'a> {
@@ -310,9 +381,7 @@ impl<'a> ConstValue<'a> {
     }
   }
 
-  fn slice_to_llvm(slice: &[ConstValue<'a>]) -> (*mut LLVMValueRef, libc::c_uint) {
-    slice_to_llvm!(slice, ConstValue => LLVMValueRef)
-  }
+  slice_to_llvm!(LLVMValueRef);
 
   pub fn array(ty: Type<'a>, arr: &[ConstValue<'a>]) -> Self {
     unsafe {
@@ -336,27 +405,6 @@ impl<'a> ConstValue<'a> {
         value: glob_ptr,
         ctxt: init.0.ctxt,
       })
-    }
-  }
-}
-
-pub fn _output_to_file(ctxt: &Context, f: &str) {
-  let f = std::ffi::CString::new(f.to_owned()).unwrap();
-  unsafe {
-    let mut error: *mut libc::c_char = std::ptr::null_mut();
-    let res = LLVMTargetMachineEmitToFile(
-      ctxt.target_machine,
-      ctxt.module,
-      f.into_raw(),
-      LLVMCodeGenFileType::LLVMObjectFile,
-      &mut error,
-    );
-
-    if res != 0 {
-      panic!(
-        "failed to write to file: {}",
-        std::ffi::CStr::from_ptr(error).to_str().unwrap()
-      );
     }
   }
 }
