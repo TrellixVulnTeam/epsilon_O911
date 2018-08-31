@@ -1,4 +1,6 @@
 #[macro_use]
+mod macros;
+
 #[allow(dead_code)]
 mod llvm;
 

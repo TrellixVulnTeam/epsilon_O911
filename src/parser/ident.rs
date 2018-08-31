@@ -6,7 +6,7 @@ pub struct Identifier<'a> {
 }
 
 pub struct Context {
-  set: ()//UnsafeCell<HashSet<IdentifierBox>>,
+  set: (), //UnsafeCell<HashSet<IdentifierBox>>
 }
 
 impl Context {
@@ -30,6 +30,7 @@ impl IdentifierBox {
     let size = s.nfc().map(|c| c.len_utf8()).sum();
 
     unsafe {
+      axiom!(size <= isize::max_value() as usize; LLVM assumes this);
       assert!(size <= u32::max_value() as usize);
       let full_size = std::mem::size_of::<IdentifierInner>() + size;
       let align = std::mem::align_of::<IdentifierInner>();
@@ -38,16 +39,12 @@ impl IdentifierBox {
 
       std::ptr::write(&mut (*ptr).size, size as u32);
 
-      let mut buff = (*ptr).mut_ptr();
-      let mut remaining = size;
+      let mut buff = std::slice::from_raw_parts_mut((*ptr).mut_ptr(), size);
       for ch in s.nfc() {
-        let offset = ch
-          .encode_utf8(std::slice::from_raw_parts_mut(buff, remaining))
-          .len();
-        buff = buff.offset(offset as isize);
-        remaining -= offset;
+        let offset = ch.encode_utf8(buff).len();
+        buff = &mut buff[offset..]
       }
-      assert!(remaining == 0);
+      assert!(buff.len() == 0);
 
       IdentifierBox {
         ptr: std::ptr::NonNull::new_unchecked(ptr),
@@ -95,7 +92,7 @@ impl IdentifierInner {
   crate fn as_str(&self) -> &str {
     unsafe {
       let utf8 = std::slice::from_raw_parts(self.ptr(), self.len());
-      std::str::from_utf8(utf8).unwrap()
+      std::str::from_utf8_unchecked(utf8)
     }
   }
 }

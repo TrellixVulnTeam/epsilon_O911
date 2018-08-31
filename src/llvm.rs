@@ -7,19 +7,6 @@ use llvm_sys::*;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 
-macro_rules! cstr {
-  (rust $s:expr) => {
-    unsafe {
-      std::ffi::CStr::from_bytes_with_nul_unchecked(
-        &*(concat!($s, "\0") as *const str as *const [u8]),
-      )
-    }
-  };
-  ($s:expr) => {
-    concat!($s, "\0") as *const str as *const libc::c_char
-  };
-}
-
 macro_rules! slice_to_llvm {
   ($underlying:ty) => {
     unsafe fn __slice_to_llvm_check_size(self) {
