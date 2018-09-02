@@ -7,6 +7,8 @@ use llvm_sys::*;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 
+use crate::interner::InternedString;
+
 macro_rules! slice_to_llvm {
   ($underlying:ty) => {
     unsafe fn __slice_to_llvm_check_size(self) {
@@ -20,6 +22,11 @@ macro_rules! slice_to_llvm {
         slice.len() as libc::c_uint,
       )
     }
+  };
+}
+macro_rules! cstr {
+  ($s:expr) => {
+    concat!($s, "\0") as *const str as *const libc::c_char
   };
 }
 
@@ -264,10 +271,10 @@ pub struct BasicBlock<'a> {
 }
 
 impl<'a> Function<'a> {
-  pub fn new(name: &CStr, ty: FunctionType<'a>, ctxt: &'a Context) -> Self {
+  pub fn new(name: InternedString, ty: FunctionType<'a>, ctxt: &'a Context) -> Self {
     unsafe {
       Function(Value {
-        value: LLVMAddFunction(ctxt.module, name.as_ptr(), ty.0.ty),
+        value: LLVMAddFunction(ctxt.module, name.as_cstr_ptr(), ty.0.ty),
         ctxt: PhantomData,
       })
     }
