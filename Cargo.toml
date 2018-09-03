@@ -12,6 +12,7 @@ llvm-sys = "60"
 unicode-normalization = "0.1.7"
 libc = "0.2"
 lazy_static = "1.1"
+unicode-xid = "0.1"
 
 [profile.dev]
 opt-level = 0

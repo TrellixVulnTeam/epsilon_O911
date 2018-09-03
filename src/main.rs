@@ -5,29 +5,19 @@ mod interner;
 
 mod parser;
 
-use self::llvm::*;
-
-fn test_interner(intern: &interner::Context) {
-  let latin_capital_a_with_ring = r#"Å"#;
-  let angstrom = r#"Å"#;
-  let combining = r#"Å"#;
-
-  assert!(latin_capital_a_with_ring != angstrom);
-  assert!(angstrom != combining);
-  assert!(combining != latin_capital_a_with_ring);
-
-  let lcar = intern.add_string(latin_capital_a_with_ring);
-  let ang = intern.add_string(angstrom);
-  let comb = intern.add_string(combining);
-
-  assert_eq!(lcar, ang);
-  assert_eq!(ang, comb);
-  assert_eq!(comb, lcar);
-}
+use crate::llvm::*;
+use crate::parser::lexer::*;
 
 fn main() {
   let intern = interner::Context::new();
-  test_interner(&intern);
+
+  let mut lex = Lexer::new("func hello  hi", &intern);
+  loop {
+    match lex.next_token() {
+      Token::Eof => break,
+      tok => println!("{:?}", tok),
+    }
+  }
 
   let ctxt = llvm::Context::new();
 

@@ -51,6 +51,17 @@ impl<'a> cmp::PartialEq for InternedString<'a> {
 }
 impl<'a> cmp::Eq for InternedString<'a> { }
 
+impl<'a> cmp::PartialEq<str> for InternedString<'a> {
+  fn eq(&self, other: &str) -> bool {
+    self.ptr.eq(other)
+  }
+}
+impl<'a> cmp::PartialEq<InternedString<'a>> for str {
+  fn eq(&self, other: &InternedString<'a>) -> bool {
+    other.eq(self)
+  }
+}
+
 impl cmp::PartialEq for NfcCmpStr {
   fn eq(&self, other: &Self) -> bool {
     self.0.nfc().eq(other.0.nfc())
