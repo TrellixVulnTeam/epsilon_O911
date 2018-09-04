@@ -1,4 +1,4 @@
-use std::{borrow, cmp, ops, fmt};
+use std::{borrow, cmp, fmt, ops};
 
 use unicode_normalization::UnicodeNormalization;
 
@@ -49,7 +49,7 @@ impl<'a> cmp::PartialEq for InternedString<'a> {
     self.ptr as *const _ == other.ptr as *const _
   }
 }
-impl<'a> cmp::Eq for InternedString<'a> { }
+impl<'a> cmp::Eq for InternedString<'a> {}
 
 impl<'a> cmp::PartialEq<str> for InternedString<'a> {
   fn eq(&self, other: &str) -> bool {
@@ -67,7 +67,7 @@ impl cmp::PartialEq for NfcCmpStr {
     self.0.nfc().eq(other.0.nfc())
   }
 }
-impl cmp::Eq for NfcCmpStr { }
+impl cmp::Eq for NfcCmpStr {}
 
 impl cmp::PartialOrd for NfcCmpStr {
   fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {

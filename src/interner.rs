@@ -52,7 +52,8 @@ impl Context {
       } else {
         inner.insert(InternedStringBox::new(name));
         // this seems unnecessary, but BTreeSet doesn't have a full interface
-        let ptr: &'a InternedStringInner = &*inner.get(name_cmp).unwrap().as_raw_ptr();
+        let ptr: &'a InternedStringInner =
+          &*inner.get(name_cmp).unwrap().as_raw_ptr();
         InternedString { ptr }
       }
     }

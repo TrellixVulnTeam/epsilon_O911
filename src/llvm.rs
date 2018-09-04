@@ -49,7 +49,8 @@ impl Context {
     unsafe {
       use lazy_static::lazy_static;
       lazy_static! {
-        static ref INITIALIZED: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
+        static ref INITIALIZED: std::sync::Mutex<bool> =
+          std::sync::Mutex::new(false);
       }
       let mut initialized = INITIALIZED.lock().unwrap();
       if !*initialized {
@@ -109,9 +110,7 @@ impl Context {
   }
 
   pub fn pointer_size(&self) -> libc::c_uint {
-    unsafe {
-      LLVMPointerSize(self.target_data)
-    }
+    unsafe { LLVMPointerSize(self.target_data) }
   }
 
   pub fn dump(&self) {
@@ -120,7 +119,10 @@ impl Context {
     }
   }
 
-  pub fn write_asm_file<W: std::fmt::Write>(&self, w: &mut W) -> std::fmt::Result {
+  pub fn write_asm_file<W: std::fmt::Write>(
+    &self,
+    w: &mut W,
+  ) -> std::fmt::Result {
     unsafe {
       let mut buffer: LLVMMemoryBufferRef = std::ptr::null_mut();
       let mut err: *mut libc::c_char = std::ptr::null_mut();
@@ -139,12 +141,16 @@ impl Context {
       }
       let ptr = LLVMGetBufferStart(buffer) as *mut u8;
       let len = LLVMGetBufferSize(buffer) as usize;
-      let string = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap();
+      let string =
+        std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap();
       w.write_str(string)
     }
   }
 
-  pub fn write_obj_file<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+  pub fn write_obj_file<W: std::io::Write>(
+    &self,
+    w: &mut W,
+  ) -> std::io::Result<()> {
     unsafe {
       let mut buffer: LLVMMemoryBufferRef = std::ptr::null_mut();
       let mut err: *mut libc::c_char = std::ptr::null_mut();
@@ -271,7 +277,11 @@ pub struct BasicBlock<'a> {
 }
 
 impl<'a> Function<'a> {
-  pub fn new(name: InternedString, ty: FunctionType<'a>, ctxt: &'a Context) -> Self {
+  pub fn new(
+    name: InternedString,
+    ty: FunctionType<'a>,
+    ctxt: &'a Context,
+  ) -> Self {
     unsafe {
       Function(Value {
         value: LLVMAddFunction(ctxt.module, name.as_cstr_ptr(), ty.0.ty),
@@ -318,7 +328,11 @@ impl<'a> Builder<'a> {
     }
   }
 
-  pub fn build_call(&mut self, fun: Function<'a>, args: &[Value<'a>]) -> Value<'a> {
+  pub fn build_call(
+    &mut self,
+    fun: Function<'a>,
+    args: &[Value<'a>],
+  ) -> Value<'a> {
     let (ptr, len) = Value::slice_to_llvm(args);
     unsafe {
       Value {
@@ -389,7 +403,8 @@ impl<'a> ConstValue<'a> {
 
   pub fn global(ctxt: &'a Context, init: ConstValue<'a>) -> Self {
     unsafe {
-      let glob_ptr = LLVMAddGlobal(ctxt.module, LLVMTypeOf(init.0.value), cstr!(""));
+      let glob_ptr =
+        LLVMAddGlobal(ctxt.module, LLVMTypeOf(init.0.value), cstr!(""));
       LLVMSetInitializer(glob_ptr, init.0.value);
       LLVMSetGlobalConstant(glob_ptr, LLVMTrue);
       LLVMSetUnnamedAddr(glob_ptr, LLVMTrue);
