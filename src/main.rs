@@ -6,18 +6,11 @@ mod interner;
 mod parser;
 
 use crate::llvm::*;
-use crate::parser::lexer::*;
 
 fn main() {
   let intern = interner::Context::new();
 
-  let mut lex = Lexer::new("func hello  hi", &intern);
-  loop {
-    match lex.next_token() {
-      Token::Eof => break,
-      tok => println!("{:?}", tok),
-    }
-  }
+  parser::parse_test("func hello() { }", &intern);
 
   let ctxt = llvm::Context::new();
 
