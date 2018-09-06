@@ -6,6 +6,7 @@ pub enum Token<'a> {
   Eof,
   KeywordFunc,
   Identifier(InternedString<'a>),
+  IntegerLiteral(u64),
   OpenParen,
   CloseParen,
   OpenBrace,
@@ -45,6 +46,31 @@ impl<'s> Lexer<'s> {
     }
   }
 
+  fn lex_number<'i>(
+    &mut self,
+    first: usize,
+    base: u32,
+    intern: &'i Intern,
+  ) -> Token<'i> {
+    let buffer = &self.buffer;
+    let len = buffer.len();
+    let helper = move |last| {
+      Token::IntegerLiteral(
+        u64::from_str_radix(&buffer[first..last], base).unwrap(),
+      )
+    };
+    loop {
+      match self.iter.peek() {
+        Some(&(idx, ch)) if ch.is_digit(base) => { self.iter.next(); },
+        Some(&(idx, ch)) if is_xid_continue(ch) => {
+          panic!("add whitespace after numbers, before identifier characters")
+        }
+        Some(&(idx, _)) => return helper(idx),
+        None => return helper(self.buffer.len()),
+      }
+    }
+  }
+
   pub fn next_token<'i>(&mut self, intern: &'i Intern) -> Token<'i> {
     match self.iter.next() {
       None => Token::Eof,
@@ -65,6 +91,23 @@ impl<'s> Lexer<'s> {
           None => return self.match_keyword(intern, start, self.buffer.len()),
         };
       },
+      Some((_, '0')) => match self.iter.peek() {
+        Some(&(_, 'x')) | Some(&(_, 'X')) => {
+          panic!("hex literals not yet supported")
+        }
+        Some(&(_, 'b')) | Some(&(_, 'B')) => {
+          panic!("binary literals not yet supported")
+        }
+        Some(&(_, 'o')) | Some(&(_, 'O')) => {
+          panic!("octal literals not yet supported")
+        }
+        Some(&(start, ch)) if ch.is_digit(10) => self.lex_number(start, 10, intern),
+        Some(&(_, ch)) if is_xid_continue(ch) => {
+          panic!("add whitespace after numbers, before identifier characters")
+        }
+        _ => Token::IntegerLiteral(0),
+      },
+      Some((start, ch)) if ch.is_digit(10) => self.lex_number(start, 10, intern),
       Some((idx, ch)) => panic!(
         "Unrecognized character {} ({:x}) at index {}",
         ch, ch as u32, idx

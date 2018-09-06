@@ -12,7 +12,7 @@ pub enum Item<'i> {
   Function {
     name: InternedString<'i>,
     ret: InternedString<'i>,
-    body: Block<'i>,
+    //body: Block<'i>,
   },
 }
 

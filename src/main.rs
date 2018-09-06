@@ -10,7 +10,7 @@ use crate::llvm::*;
 fn main() {
   let intern = interner::Context::new();
 
-  parser::parse_test("func hello() { }", &intern);
+  parser::parse_test("func hello() { 00983924 }", &intern);
 
   let ctxt = llvm::Context::new();
 
