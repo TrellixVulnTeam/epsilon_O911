@@ -1,2 +1,6 @@
+/llvm
+.vscode
+*.swp
+
 /target
 **/*.rs.bk
