@@ -24,6 +24,15 @@ fn is_xid_start(ch: char) -> bool {
 fn is_xid_continue(ch: char) -> bool {
   UnicodeXID::is_xid_continue(ch)
 }
+fn base_of_letter(ch: char) -> Option<u32> {
+  match ch {
+    'b' | 'B' => Some(2),
+    'o' | 'O' => Some(8),
+    'd' | 'D' => Some(10),
+    'x' | 'X' => Some(16),
+    _ => None,
+  }
+}
 
 impl<'s> Lexer<'s> {
   pub fn new(program: &'s str) -> Self {
@@ -50,7 +59,6 @@ impl<'s> Lexer<'s> {
     &mut self,
     first: usize,
     base: u32,
-    intern: &'i Intern,
   ) -> Token<'i> {
     let buffer = &self.buffer;
     let len = buffer.len();
@@ -92,22 +100,33 @@ impl<'s> Lexer<'s> {
         };
       },
       Some((_, '0')) => match self.iter.peek() {
-        Some(&(_, 'x')) | Some(&(_, 'X')) => {
-          panic!("hex literals not yet supported")
-        }
-        Some(&(_, 'b')) | Some(&(_, 'B')) => {
-          panic!("binary literals not yet supported")
-        }
-        Some(&(_, 'o')) | Some(&(_, 'O')) => {
-          panic!("octal literals not yet supported")
-        }
-        Some(&(start, ch)) if ch.is_digit(10) => self.lex_number(start, 10, intern),
-        Some(&(_, ch)) if is_xid_continue(ch) => {
-          panic!("add whitespace after numbers, before identifier characters")
+        Some(&(start, ch)) => {
+          self.iter.next();
+
+          if let Some(base) = base_of_letter(ch) {
+            match self.iter.next() {
+              Some((start, ch)) if ch.is_digit(base) => {
+                self.lex_number(start, base)
+              }
+              Some((_, ch)) => {
+                panic!(
+                  "Invalid integral literal with base {}; found {}",
+                  base,
+                  ch,
+                )
+              }
+              None => panic!("Unexpected EOF"),
+            }
+          } else if ch.is_digit(10) {
+            self.lex_number(start, 10)
+          } else if is_xid_continue(ch) {
+            panic!("add whitespace after numbers, before identifier characters")
+          } else {
+            Token::IntegerLiteral(0)
+          }
         }
         _ => Token::IntegerLiteral(0),
       },
-      Some((start, ch)) if ch.is_digit(10) => self.lex_number(start, 10, intern),
       Some((idx, ch)) => panic!(
         "Unrecognized character {} ({:x}) at index {}",
         ch, ch as u32, idx

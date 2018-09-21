@@ -1,16 +1,19 @@
 #[allow(dead_code)]
 mod llvm;
-
 mod interner;
-
 mod parser;
 
 use crate::llvm::*;
+use crate::parser::Parser;
 
 fn main() {
   let intern = interner::Context::new();
+  let program = "func foo() -> i32 { 0 }";
+  let mut parser = Parser::new(program, &intern);
 
-  parser::parse_test("func hello() { 00983924 }", &intern);
+  while let Some(item) = parser.next_item() {
+    println!("{:?}", item)
+  }
 
   let ctxt = llvm::Context::new();
 

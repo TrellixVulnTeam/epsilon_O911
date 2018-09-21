@@ -1,4 +1,3 @@
-use alloc::alloc;
 use std::{cell, collections, ffi};
 use unicode_normalization::UnicodeNormalization;
 
@@ -85,8 +84,8 @@ impl InternedStringBox {
     unsafe {
       let full_size = std::mem::size_of::<InternedStringInner>() + size;
       let align = std::mem::align_of::<InternedStringInner>();
-      let layout = alloc::Layout::from_size_align_unchecked(full_size, align);
-      let ptr = alloc::alloc(layout) as *mut InternedStringInner;
+      let layout = std::alloc::Layout::from_size_align_unchecked(full_size, align);
+      let ptr = std::alloc::alloc(layout) as *mut InternedStringInner;
 
       std::ptr::write(&mut (*ptr).size, len as u32);
 
@@ -115,8 +114,8 @@ impl Drop for InternedStringBox {
     unsafe {
       let size = std::mem::size_of::<InternedStringInner>() + self.len() + 1;
       let align = std::mem::align_of::<InternedStringInner>();
-      let layout = alloc::Layout::from_size_align_unchecked(size, align);
-      alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
+      let layout = std::alloc::Layout::from_size_align_unchecked(size, align);
+      std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
     }
   }
 }
