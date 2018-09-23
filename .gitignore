@@ -1,4 +1,5 @@
 /llvm
+__pycache__
 .vscode
 *.swp
 
