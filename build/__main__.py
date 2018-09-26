@@ -1,11 +1,13 @@
 import argparse
 import cargo
 import llvm
+import platform
 
 from common import ARCH_LIST, ARCH_X64, OPT_DEBUG, OPT_RELEASE
 
 def get_arguments():
   parser = argparse.ArgumentParser(
+    parents=[platform.command_line_parser()],
     description=
       "Build newt - we have this instead of cargo because we can't build "
       "LLVM through build.rs",
@@ -38,9 +40,9 @@ def main():
   args = get_arguments()
 
   llvm.download()
-  llvm.build(args.host)
+  llvm.build(args)
 
-  cargo.build(args.host, args.opt_level)
+  cargo.build(args)
 
 if __name__ == "__main__":
   main()

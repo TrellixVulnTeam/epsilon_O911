@@ -4,9 +4,10 @@ import tarfile
 from io import BytesIO
 from os import path
 from subprocess import run
+from shutil import rmtree
 from urllib.request import urlopen
 
-from platform import cmake_generator, setup_environment
+import platform
 
 LLVM_SRC_DIR = "llvm-6.0.1.src"
 LLVM_URL = f"https://releases.llvm.org/6.0.1/{LLVM_SRC_DIR}.tar.xz"
@@ -22,8 +23,8 @@ def _llvm_members(tf):
       member.path = path.join(LLVM_SOURCE_PATH, member.path[dir_len:])
       yield member
 
-def install_path(host):
-  return path.join(LLVM_PATH, host)
+def install_path(args):
+  return path.join(LLVM_PATH, args.host)
 
 def download():
   if not path.exists(LLVM_PATH):
@@ -38,38 +39,42 @@ def download():
   else:
     print("Already downloaded LLVM sources")
 
-def build(host):
+def build(args):
   cwd = os.getcwd()
-  build_path = path.join(LLVM_PATH, f"build-{host}")
+  build_path = path.join(LLVM_PATH, f"build-{args.host}")
+  inst_path = install_path(args)
+
+  env = platform.environment(args)
 
   if not path.exists(build_path):
-    print("Building for", host)
+    print("Building for", args.host)
     os.mkdir(build_path)
     os.chdir(build_path)
     cmd_line = (
       "cmake", LLVM_SOURCE_PATH,
-      f"-DCMAKE_INSTALL_PREFIX={install_path(host)}",
+      f"-DCMAKE_INSTALL_PREFIX={inst_path}",
       "-DCMAKE_BUILD_TYPE=Release",
-      "-G", cmake_generator(host),
-      "-DLLVM_ENABLE_ASSERTIONS=1",
-      "-Thost=x64")
-    out = run(cmd_line)
+      "-G", platform.cmake_generator(args),
+      "-DLLVM_ENABLE_ASSERTIONS=1")
+    out = run(cmd_line, env=env)
     if out.returncode != 0:
+      rmtree(build_path)
       exit(1)
   else:
-    print("Already built for", host)
+    print("Already built for", args.host)
     os.chdir(build_path)
 
-  if not path.exists(install_path(host)):
-    print("Installing LLVM for", host)
+  if not path.exists(inst_path):
+    print("Installing LLVM for", args.host)
     cmd_line = (
       "cmake",
       "--build", ".",
       "--target", "install")
-    out = run(cmd_line)
+    out = run(cmd_line, env=env)
     if out.returncode != 0:
+      rmtree(inst_path)
       exit(1)
   else:
-    print("Already installed LLVM for", host)
+    print("Already installed LLVM for", args.host)
 
   os.chdir(cwd)
