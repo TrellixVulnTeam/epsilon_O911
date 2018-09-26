@@ -44,9 +44,10 @@ def build(args):
   build_path = path.join(LLVM_PATH, f"build-{args.host}")
   inst_path = install_path(args)
 
-  env = platform.environment(args)
+  env = None
 
   if not path.exists(build_path):
+    env = platform.environment(args)
     print("Building for", args.host)
     os.mkdir(build_path)
     os.chdir(build_path)
@@ -65,6 +66,8 @@ def build(args):
     os.chdir(build_path)
 
   if not path.exists(inst_path):
+    if not env:
+      env = platform.environment(args)
     print("Installing LLVM for", args.host)
     cmd_line = (
       "cmake",
