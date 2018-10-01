@@ -8,8 +8,13 @@ from subprocess import run
 def build(args):
   target = cargo_target(args)
 
+  if args.run:
+    cargo_cmd = "run"
+  else:
+    cargo_cmd = "build"
+
   cmd = [
-    "cargo", "build",
+    "cargo", cargo_cmd,
     "--target", target ]
 
   if args.opt_level == OPT_RELEASE:

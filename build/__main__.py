@@ -34,6 +34,13 @@ def get_arguments():
       "Build in release mode "
       "(note: LLVM is always built with optimizations and assertions)")
 
+  parser.add_argument(
+    "--run",
+    dest="run",
+    action="store_true",
+    required=False,
+    help="Run the compiled binary as well")
+
   return parser.parse_args()
 
 def main():
