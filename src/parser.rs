@@ -1,7 +1,7 @@
 mod lexer;
 
-use self::lexer::{Lexer, Token};
-use crate::interner::{Context as Interner, InternedString};
+use self::lexer::{Lexer, Token, StringKind};
+use crate::interner::{Context as Interner, NfcStringRef};
 
 pub struct Parser<'i, 's> {
   lexer: Lexer<'s>,
@@ -11,8 +11,8 @@ pub struct Parser<'i, 's> {
 
 #[derive(Debug)]
 pub struct Function<'i> {
-  name: InternedString<'i>,
-  ret_ty: InternedString<'i>,
+  name: NfcStringRef<'i>,
+  ret_ty: NfcStringRef<'i>,
   body: Expression<'i>,
 }
 
@@ -24,7 +24,8 @@ pub enum Item<'i> {
 #[derive(Debug)]
 pub enum Expression<'i> {
   IntegerLiteral(u64),
-  Name(InternedString<'i>),
+  Name(NfcStringRef<'i>),
+  StringLiteral(StringKind, NfcStringRef<'i>)
 }
 
 impl<'i, 's> Parser<'i, 's> {
@@ -55,7 +56,7 @@ impl<'i, 's> Parser<'i, 's> {
     }
   }
 
-  fn get_ident(&mut self) -> InternedString<'i> {
+  fn get_ident(&mut self) -> NfcStringRef<'i> {
     match self.next_token() {
       Token::Identifier(s) => s,
       tok => panic!("Expected ident, found {:?}", tok),
@@ -73,6 +74,7 @@ impl<'i, 's> Parser<'i, 's> {
     match self.next_token() {
       Token::IntegerLiteral(i) => Expression::IntegerLiteral(i),
       Token::Identifier(s) => Expression::Name(s),
+      Token::StringLiteral(kind, s) => Expression::StringLiteral(kind, s),
       tok => panic!("Expected expression, found {:?}", tok),
     }
   }

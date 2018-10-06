@@ -1,18 +1,25 @@
-use crate::interner::{Context as Intern, InternedString};
+use crate::interner::{Context as Interner, NfcStringRef};
 use unicode_xid::UnicodeXID;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Token<'a> {
+pub enum Token<'i> {
   Eof,
   KeywordFunc,
-  Operator(InternedString<'a>),
-  Identifier(InternedString<'a>),
+  Operator(NfcStringRef<'i>),
+  Identifier(NfcStringRef<'i>),
   IntegerLiteral(u64),
+  StringLiteral(StringKind, NfcStringRef<'i>),
   OpenParen,
   CloseParen,
   OpenBrace,
   CloseBrace,
   Arrow,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum StringKind {
+  Normal,
+  CString,
 }
 
 pub struct Lexer<'s> {
@@ -57,7 +64,7 @@ impl<'s> Lexer<'s> {
 
   fn match_identifier<'i>(
     &self,
-    intern: &'i Intern,
+    intern: &'i Interner,
     first: usize,
     last: usize,
   ) -> Token<'i> {
@@ -73,7 +80,7 @@ impl<'s> Lexer<'s> {
 
   fn match_operator<'i>(
     &self,
-    intern: &'i Intern,
+    intern: &'i Interner,
     first: usize,
     last: usize,
   ) -> Token<'i> {
@@ -87,13 +94,8 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  fn lex_number<'i>(
-    &mut self,
-    first: usize,
-    base: u32,
-  ) -> Token<'i> {
+  fn lex_number<'i>(&mut self, first: usize, base: u32) -> Token<'i> {
     let buffer = &self.buffer;
-    let len = buffer.len();
     let helper = move |last| {
       let buff = &buffer[first..last];
       let int = match u64::from_str_radix(buff, base) {
@@ -104,8 +106,10 @@ impl<'s> Lexer<'s> {
     };
     loop {
       match self.iter.peek() {
-        Some(&(idx, ch)) if ch.is_digit(base) => { self.iter.next(); },
-        Some(&(idx, ch)) if is_ident_continue(ch) => {
+        Some(&(_, ch)) if ch.is_digit(base) => {
+          self.iter.next();
+        }
+        Some(&(_, ch)) if is_ident_continue(ch) => {
           panic!("add whitespace after numbers, before identifier characters")
         }
         Some(&(idx, _)) => return helper(idx - 1),
@@ -114,14 +118,43 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  pub fn next_token<'i>(&mut self, intern: &'i Intern) -> Token<'i> {
+  /*
+    note: the iterator should be pointed at the character after the leading `"`
+    i.e., for "Hello", the iterator should be at
+               ^
+  */
+  fn lex_string<'i>(
+    &mut self,
+    kind: StringKind,
+    intern: &'i Interner,
+  ) -> Token<'i> {
+    let start = match self.iter.peek() {
+      Some(&(idx, _)) => idx,
+      None => panic!("Unexpected EOF"),
+    };
+
+    loop {
+      match self.iter.next() {
+        Some((last, '"')) => {
+          let s = &self.buffer[start..last];
+          return Token::StringLiteral(kind, intern.add_string(s));
+        }
+        Some((_, '\\')) => panic!("escapes not yet supported"),
+        Some(_) => (),
+        None => panic!("Unexpected EOF"),
+      }
+    }
+  }
+
+  pub fn next_token<'i>(&mut self, intern: &'i Interner) -> Token<'i> {
     match self.iter.next() {
       None => Token::Eof,
       Some((_, '(')) => Token::OpenParen,
       Some((_, ')')) => Token::CloseParen,
       Some((_, '{')) => Token::OpenBrace,
       Some((_, '}')) => Token::CloseBrace,
-      Some((start, ch)) if ch.is_whitespace() => loop {
+      Some((_, '"')) => self.lex_string(StringKind::Normal, intern),
+      Some((_, ch)) if ch.is_whitespace() => loop {
         match self.iter.peek() {
           Some(&(_, ch)) if ch.is_whitespace() => self.iter.next(),
           _ => return self.next_token(intern),
@@ -129,14 +162,24 @@ impl<'s> Lexer<'s> {
       },
       Some((start, ch)) if is_ident_start(ch) => loop {
         match self.iter.peek() {
-          Some(&(idx, ch)) if is_ident_continue(ch) => self.iter.next(),
+          Some(&(_, ch)) if is_ident_continue(ch) => self.iter.next(),
+          Some(&(idx, '"')) => {
+            self.iter.next();
+            let kind = match &self.buffer[start..idx] {
+              "c" | "C" => StringKind::CString,
+              other => panic!("Unsupported string literal prefix: `{}`", other)
+            };
+            return self.lex_string(kind, intern)
+          }
           Some(&(idx, _)) => return self.match_identifier(intern, start, idx),
-          None => return self.match_identifier(intern, start, self.buffer.len()),
+          None => {
+            return self.match_identifier(intern, start, self.buffer.len())
+          }
         };
       },
       Some((start, ch)) if is_operator_start(ch) => loop {
         match self.iter.peek() {
-          Some(&(idx, ch)) if is_operator_continue(ch) => self.iter.next(),
+          Some(&(_, ch)) if is_operator_continue(ch) => self.iter.next(),
           Some(&(idx, _)) => return self.match_operator(intern, start, idx),
           None => return self.match_operator(intern, start, self.buffer.len()),
         };
@@ -150,13 +193,10 @@ impl<'s> Lexer<'s> {
               Some((start, ch)) if ch.is_digit(base) => {
                 self.lex_number(start, base)
               }
-              Some((_, ch)) => {
-                panic!(
-                  "Invalid integral literal with base {}; found {}",
-                  base,
-                  ch,
-                )
-              }
+              Some((_, ch)) => panic!(
+                "Invalid integral literal with base {}; found {}",
+                base, ch,
+              ),
               None => panic!("Unexpected EOF"),
             }
           } else if is_ident_continue(ch1) {

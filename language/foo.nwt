@@ -1,3 +1,7 @@
+extern {
+  func puts(_: *const char) -> i32;
+}
+
 func main() -> i32 {
-  printf(c"Hello, world!\n");
+  puts(c"Hello, world!\n")
 }

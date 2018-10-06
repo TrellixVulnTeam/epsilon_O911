@@ -4,11 +4,11 @@ use unicode_normalization::UnicodeNormalization;
 mod impls;
 
 #[derive(Copy, Clone)]
-pub struct InternedString<'a> {
-  ptr: &'a InternedStringInner,
+pub struct NfcStringRef<'a> {
+  ptr: &'a NfcStringInner,
 }
 
-impl<'a> InternedString<'a> {
+impl<'a> NfcStringRef<'a> {
   pub fn len(self) -> usize {
     self.ptr.len()
   }
@@ -28,7 +28,7 @@ pub struct Context {
   // for safety, this must be append-only
   // _never_ remove any values from it
   // we use BTreeMap for the entry API
-  set: cell::UnsafeCell<collections::BTreeSet<InternedStringBox>>,
+  set: cell::UnsafeCell<collections::BTreeSet<NfcStringBuf>>,
 }
 
 impl Context {
@@ -38,7 +38,7 @@ impl Context {
     }
   }
 
-  pub fn add_string<'a>(&'a self, name: &str) -> InternedString<'a> {
+  pub fn add_string<'a>(&'a self, name: &str) -> NfcStringRef<'a> {
     unsafe {
       // safe because we don't allow anybody to get a reference to the innards
       // without an indirection
@@ -46,26 +46,27 @@ impl Context {
       let name_cmp = NfcCmpStr::from_str(name);
       let inner = &mut *self.set.get();
       if let Some(b) = inner.get(name_cmp) {
-        let ptr: &'a InternedStringInner = &*b.as_raw_ptr();
-        InternedString { ptr }
+        NfcStringRef {
+          ptr: &*b.as_raw_ptr(),
+        }
       } else {
-        inner.insert(InternedStringBox::new(name));
+        inner.insert(NfcStringBuf::new(name));
         // this seems unnecessary, but BTreeSet doesn't have a full interface
-        let ptr: &'a InternedStringInner =
-          &*inner.get(name_cmp).unwrap().as_raw_ptr();
-        InternedString { ptr }
+        NfcStringRef {
+          ptr: &*inner.get(name_cmp).unwrap().as_raw_ptr(),
+        }
       }
     }
   }
 }
 
-struct InternedStringBox {
-  ptr: std::ptr::NonNull<InternedStringInner>,
+pub struct NfcStringBuf {
+  ptr: std::ptr::NonNull<NfcStringInner>,
 }
 
-impl InternedStringBox {
+impl NfcStringBuf {
   // note: does unicode normalization, and nul-termination
-  fn new(s: &str) -> InternedStringBox {
+  pub fn new(s: &str) -> NfcStringBuf {
     /*
       we assert this because `nfc` is allowed to triple the size of
       the original string, at most, and we don't want our lengths to
@@ -78,14 +79,16 @@ impl InternedStringBox {
       .map(|c| {
         debug_assert!(c != '\0');
         c.len_utf8()
-      }).sum();
+      })
+      .sum();
     let size = len + 1;
 
     unsafe {
-      let full_size = std::mem::size_of::<InternedStringInner>() + size;
-      let align = std::mem::align_of::<InternedStringInner>();
-      let layout = std::alloc::Layout::from_size_align_unchecked(full_size, align);
-      let ptr = std::alloc::alloc(layout) as *mut InternedStringInner;
+      let full_size = std::mem::size_of::<NfcStringInner>() + size;
+      let align = std::mem::align_of::<NfcStringInner>();
+      let layout =
+        std::alloc::Layout::from_size_align_unchecked(full_size, align);
+      let ptr = std::alloc::alloc(layout) as *mut NfcStringInner;
 
       std::ptr::write(&mut (*ptr).size, len as u32);
 
@@ -97,23 +100,27 @@ impl InternedStringBox {
       assert!(buff.len() == 1);
       buff[0] = b'\0';
 
-      InternedStringBox {
+      NfcStringBuf {
         ptr: std::ptr::NonNull::new_unchecked(ptr),
       }
     }
   }
 
+  pub fn as_ref(&self) -> NfcStringRef {
+    NfcStringRef { ptr: &**self }
+  }
+
   // for breaking lifetimes
-  fn as_raw_ptr(&self) -> *const InternedStringInner {
+  fn as_raw_ptr(&self) -> *const NfcStringInner {
     &**self
   }
 }
 
-impl Drop for InternedStringBox {
+impl Drop for NfcStringBuf {
   fn drop(&mut self) {
     unsafe {
-      let size = std::mem::size_of::<InternedStringInner>() + self.len() + 1;
-      let align = std::mem::align_of::<InternedStringInner>();
+      let size = std::mem::size_of::<NfcStringInner>() + self.len() + 1;
+      let align = std::mem::align_of::<NfcStringInner>();
       let layout = std::alloc::Layout::from_size_align_unchecked(size, align);
       std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
     }
@@ -121,35 +128,35 @@ impl Drop for InternedStringBox {
 }
 
 #[repr(C)]
-struct InternedStringInner {
+pub struct NfcStringInner {
   size: u32,
   /*
     dynamically sized array with size `size`
     note: _always_ normalized to NFC, and given a null terminator.
-    This invariant is upheld by InternedStringBox
+    This invariant is upheld by NfcStringBuf
   */
   array: [u8; 0],
 }
 
-impl InternedStringInner {
-  fn len(&self) -> usize {
+impl NfcStringInner {
+  pub fn len(&self) -> usize {
     self.size as usize
   }
-  fn ptr(&self) -> *const u8 {
+  pub fn ptr(&self) -> *const u8 {
     &self.array as *const [u8; 0] as *const u8
   }
-  fn mut_ptr(&mut self) -> *mut u8 {
+  pub fn mut_ptr(&mut self) -> *mut u8 {
     &mut self.array as *mut [u8; 0] as *mut u8
   }
 
-  fn as_str(&self) -> &str {
+  pub fn as_str(&self) -> &str {
     unsafe {
       let utf8 = std::slice::from_raw_parts(self.ptr(), self.len());
       std::str::from_utf8_unchecked(utf8)
     }
   }
 
-  fn as_cstr(&self) -> &ffi::CStr {
+  pub fn as_cstr(&self) -> &ffi::CStr {
     unsafe {
       let utf8 = std::slice::from_raw_parts(self.ptr(), self.len() + 1);
       ffi::CStr::from_bytes_with_nul_unchecked(utf8)

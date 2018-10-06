@@ -1,0 +1,35 @@
+func print_int_ln(x: i32) {
+  print_int(x);
+  print("\n");
+}
+
+func main() -> i32 {
+  for (x: int; 0 <= x < 10) {
+    print_int_ln(x);
+  }
+
+  let arr: [6]i32 = [0, 1, 2, 3, 4, 5];
+  for (x: *mut int; &arr[0] <= x < &arr[^]) {
+    print_int_ln(x);
+  }
+
+  for (x: usize; 0 <= x < ^arr) {
+    print_int_ln(arr[x]);
+  }
+
+  let start: *mut i32 = &arr[0];
+  let end: *mut i32 = &arr[^];
+
+  for (x: *mut i32; start <= x < end) {
+    print_int_ln(*x);
+  }
+
+  let slice: [..]i32 = arr[..];
+
+  for (x: *mut i32; &slice[0] <= x < &slice[^]) {
+    print_int_ln(*x);
+  }
+
+  let slice2: [..]i32 = slice[1..^];
+  let slice3: [..]i32 = slice2[0..1];
+}

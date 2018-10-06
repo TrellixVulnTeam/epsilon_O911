@@ -1,20 +1,24 @@
+mod interner;
 #[allow(dead_code)]
 mod llvm;
-mod interner;
 mod parser;
 
+use crate::interner::Context as Interner;
 use crate::llvm::*;
 use crate::parser::Parser;
 
 fn main() {
-  let intern = interner::Context::new();
+  let intern = Interner::new();
   let program = "func foo() -> i32 { 0 }";
   let mut parser = Parser::new(program, &intern);
 
   while let Some(item) = parser.next_item() {
     println!("{:?}", item)
   }
+}
 
+#[allow(unused)]
+fn test_llvm(intern: &Interner) {
   let ctxt = llvm::Context::new();
 
   let int_ty = Type::int32(&ctxt);
@@ -51,9 +55,8 @@ fn main() {
   builder.build_ret(Value::from(ConstValue::int(int_ty, 0, false)));
 
   ctxt.dump();
+
   //let mut file = String::new();
   //ctxt.write_asm_file(&mut file).unwrap();
   //println!("{}", file);
-
-  //llvm::output_to_file(&mut ctxt, "./hello-world.obj");
 }
