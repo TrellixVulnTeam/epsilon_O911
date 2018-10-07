@@ -1,19 +1,28 @@
-use crate::interner::{Context as Interner, NfcStringRef};
+use crate::IdentInterner;
+use crate::string::NfcString;
 use unicode_xid::UnicodeXID;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Token<'i> {
   Eof,
-  KeywordFunc,
-  Operator(NfcStringRef<'i>),
-  Identifier(NfcStringRef<'i>),
+
   IntegerLiteral(u64),
-  StringLiteral(StringKind, NfcStringRef<'i>),
+  StringLiteral(StringKind, &'i NfcString),
+
+  Operator(&'i NfcString),
+  Identifier(&'i NfcString),
+
+  Arrow,
+  KeywordFunc,
+  KeywordExtern,
+  KeywordUnderscore,
+
+  Colon,
+  Semicolon,
   OpenParen,
   CloseParen,
   OpenBrace,
   CloseBrace,
-  Arrow,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -39,7 +48,7 @@ fn is_operator_continue(ch: char) -> bool {
 }
 
 fn is_ident_start(ch: char) -> bool {
-  UnicodeXID::is_xid_start(ch)
+  ch == '_' || UnicodeXID::is_xid_start(ch)
 }
 fn is_ident_continue(ch: char) -> bool {
   ch == '-' || ch == '\'' || UnicodeXID::is_xid_continue(ch)
@@ -64,23 +73,22 @@ impl<'s> Lexer<'s> {
 
   fn match_identifier<'i>(
     &self,
-    intern: &'i Interner,
+    intern: &'i IdentInterner,
     first: usize,
     last: usize,
   ) -> Token<'i> {
-    let ident = &self.buffer[first..last];
-    match ident {
+    let ident = intern.add_element(&self.buffer[first..last]);
+    match ident.as_str() {
+      "_" => Token::KeywordUnderscore,
       "func" => Token::KeywordFunc,
-      _ => {
-        let id = intern.add_string(ident);
-        Token::Identifier(id)
-      }
+      "extern" => Token::KeywordExtern,
+      _ => Token::Identifier(ident),
     }
   }
 
   fn match_operator<'i>(
     &self,
-    intern: &'i Interner,
+    intern: &'i IdentInterner,
     first: usize,
     last: usize,
   ) -> Token<'i> {
@@ -88,7 +96,7 @@ impl<'s> Lexer<'s> {
     match ident {
       "->" => Token::Arrow,
       _ => {
-        let id = intern.add_string(ident);
+        let id = intern.add_element(ident);
         Token::Operator(id)
       }
     }
@@ -126,7 +134,7 @@ impl<'s> Lexer<'s> {
   fn lex_string<'i>(
     &mut self,
     kind: StringKind,
-    intern: &'i Interner,
+    intern: &'i IdentInterner,
   ) -> Token<'i> {
     let start = match self.iter.peek() {
       Some(&(idx, _)) => idx,
@@ -137,7 +145,7 @@ impl<'s> Lexer<'s> {
       match self.iter.next() {
         Some((last, '"')) => {
           let s = &self.buffer[start..last];
-          return Token::StringLiteral(kind, intern.add_string(s));
+          return Token::StringLiteral(kind, intern.add_element(s));
         }
         Some((_, '\\')) => panic!("escapes not yet supported"),
         Some(_) => (),
@@ -146,9 +154,11 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  pub fn next_token<'i>(&mut self, intern: &'i Interner) -> Token<'i> {
+  pub fn next_token<'i>(&mut self, intern: &'i IdentInterner) -> Token<'i> {
     match self.iter.next() {
       None => Token::Eof,
+      Some((_, ':')) => Token::Colon,
+      Some((_, ';')) => Token::Semicolon,
       Some((_, '(')) => Token::OpenParen,
       Some((_, ')')) => Token::CloseParen,
       Some((_, '{')) => Token::OpenBrace,

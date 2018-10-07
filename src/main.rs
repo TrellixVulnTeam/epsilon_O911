@@ -2,15 +2,24 @@ mod interner;
 #[allow(dead_code)]
 mod llvm;
 mod parser;
+mod string;
 
-use crate::interner::Context as Interner;
 use crate::llvm::*;
 use crate::parser::Parser;
 
+const PROGRAM: &'static str = r#"
+extern func puts() -> i32;
+
+func main() -> i32 {
+  0
+}
+"#;
+
+type IdentInterner = interner::Interner<string::NfcStringBuf>;
+
 fn main() {
-  let intern = Interner::new();
-  let program = "func foo() -> i32 { 0 }";
-  let mut parser = Parser::new(program, &intern);
+  let intern = IdentInterner::new();
+  let mut parser = Parser::new(PROGRAM, &intern);
 
   while let Some(item) = parser.next_item() {
     println!("{:?}", item)
@@ -18,7 +27,7 @@ fn main() {
 }
 
 #[allow(unused)]
-fn test_llvm(intern: &Interner) {
+fn test_llvm(intern: &IdentInterner) {
   let ctxt = llvm::Context::new();
 
   let int_ty = Type::int32(&ctxt);
@@ -26,10 +35,10 @@ fn test_llvm(intern: &Interner) {
   let pchar_ty = Type::ptr(char_ty);
 
   let puts_fun_ty = FunctionType::new(int_ty, &[pchar_ty]);
-  let puts_fun = Function::new(intern.add_string("puts"), puts_fun_ty, &ctxt);
+  let puts_fun = Function::new(intern.add_element("puts"), puts_fun_ty, &ctxt);
 
   let main_fun_ty = FunctionType::new(int_ty, &[]);
-  let main_fun = Function::new(intern.add_string("main"), main_fun_ty, &ctxt);
+  let main_fun = Function::new(intern.add_element("main"), main_fun_ty, &ctxt);
   let initial_bb = main_fun.append_bb();
 
   let mut builder = Builder::new(&ctxt);
