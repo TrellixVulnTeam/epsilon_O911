@@ -47,29 +47,13 @@ def get_arguments():
       "Build in release mode "
       "(note: LLVM is always built with optimizations and assertions)")
 
-  parser.set_defaults(action="build")
-  action = parser.add_mutually_exclusive_group()
-
-  action.add_argument(
-    "--run",
-    dest="action",
-    action="store_const",
-    const="run",
-    help="Run the compiled binary as well")
-
-  action.add_argument(
-    "--clippy",
-    dest="action",
-    action="store_const",
-    const="clippy",
-    help="Run clippy on the code")
-
-  action.add_argument(
-    "--format",
-    dest="action",
-    action="store_const",
-    const="fmt",
-    help="Run rustfmt on the code")
+  parser.add_argument(
+    "action",
+    metavar="ACTION",
+    default=CARGO_BUILD,
+    choices=(CARGO_BUILD, CARGO_RUN, CARGO_FORMAT, CARGO_CLIPPY),
+    help="Action to take (by default, build)",
+    nargs="?")
 
   args = parser.parse_args()
   args.requires_target = args.action in ["build", "run"]
