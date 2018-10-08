@@ -8,14 +8,10 @@ from subprocess import run
 def build(args):
   target = cargo_target(args)
 
-  if args.run:
-    cargo_cmd = "run"
-  else:
-    cargo_cmd = "build"
+  cmd = [ "cargo", args.action ]
 
-  cmd = [
-    "cargo", cargo_cmd,
-    "--target", target ]
+  if args.requires_target:
+    cmd.extend(("--target", target))
 
   if args.opt_level == OPT_RELEASE:
     cmd.append("--release")
@@ -23,6 +19,10 @@ def build(args):
     pass
   else:
     assert False
+
+  if args.extra_cargo_arguments:
+    cmd.append("--")
+    cmd.extend(args.extra_cargo_arguments)
 
   os.environ[LLVM_SYS_ENV_VAR] = install_path(args)
 

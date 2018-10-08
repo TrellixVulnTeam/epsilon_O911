@@ -7,7 +7,7 @@ mod string;
 use crate::llvm::*;
 use crate::parser::Parser;
 
-const PROGRAM: &'static str = r#"
+const PROGRAM: &str = r#"
 extern func puts() -> i32;
 
 func main() -> i32 {
@@ -45,23 +45,23 @@ fn test_llvm(intern: &IdentInterner) {
   builder.attach_to_bb(initial_bb);
 
   let hello_array = [
-    ConstValue::int(char_ty, b'h' as _, false),
-    ConstValue::int(char_ty, b'e' as _, false),
-    ConstValue::int(char_ty, b'l' as _, false),
-    ConstValue::int(char_ty, b'l' as _, false),
-    ConstValue::int(char_ty, b'o' as _, false),
-    ConstValue::int(char_ty, b'\n' as _, false),
-    ConstValue::int(char_ty, 0, false),
+    ConstValue::int(char_ty, b'h', false),
+    ConstValue::int(char_ty, b'e', false),
+    ConstValue::int(char_ty, b'l', false),
+    ConstValue::int(char_ty, b'l', false),
+    ConstValue::int(char_ty, b'o', false),
+    ConstValue::int(char_ty, b'\n', false),
+    ConstValue::int(char_ty, 0u64, false),
   ];
   let hello = ConstValue::array(char_ty, &hello_array);
   let hello_glob = ConstValue::global(&ctxt, hello);
 
-  let zero = ConstValue::int(Type::size_type(&ctxt), 0, false);
+  let zero = ConstValue::int(Type::size_type(&ctxt), 0u64, false);
   let arg = ConstValue::gep(hello_glob, &[zero, zero]);
 
   builder.build_call(puts_fun, &[Value::from(arg)]);
 
-  builder.build_ret(Value::from(ConstValue::int(int_ty, 0, false)));
+  builder.build_ret(Value::from(ConstValue::int(int_ty, 0u64, false)));
 
   ctxt.dump();
 

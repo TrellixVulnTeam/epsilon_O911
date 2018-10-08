@@ -1,6 +1,6 @@
 mod lexer;
 
-use self::lexer::{Lexer, Token, StringKind};
+use self::lexer::{Lexer, StringKind, Token};
 use crate::string::NfcString;
 use crate::IdentInterner;
 
@@ -32,7 +32,7 @@ pub enum Item<'i> {
 pub enum Expression<'i> {
   IntegerLiteral(u64),
   Name(&'i NfcString),
-  StringLiteral(StringKind, &'i NfcString)
+  StringLiteral(StringKind, &'i NfcString),
 }
 
 impl<'i, 's> Parser<'i, 's> {
@@ -115,7 +115,7 @@ impl<'i, 's> Parser<'i, 's> {
       }
       Token::KeywordFunc => Some(Item::Function(self.parse_function())),
       Token::Eof => None,
-      tok => panic!("unexpected token: {:?}", tok)
+      tok => panic!("unexpected token: {:?}", tok),
     }
   }
 }

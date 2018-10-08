@@ -1,28 +1,61 @@
-use unicode_normalization::UnicodeNormalization;
 use std::ffi;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::interner::Internable;
 
 mod impls;
 
-impl Internable for NfcStringBuf {
-  type Borrowed = NfcString;
-  type External = str;
-  type Comparable = NfcCmpStr;
+pub struct NfcCmpString(str);
 
-  fn external_to_cmp(s: &str) -> &NfcCmpStr {
-    NfcCmpStr::from_str(s)
-  }
-  fn as_borrowed(&self) -> &NfcString {
-    self
-  }
-  fn from_external(s: &str) -> Self {
-    Self::new(s)
-  }
+#[repr(C)]
+pub struct NfcString {
+  size: u32,
+  /*
+    dynamically sized array with size `size`
+    note: _always_ normalized to NFC, and given a null terminator.
+    This invariant is upheld by NfcStringBuf
+  */
+  array: [u8; 0],
 }
 
 pub struct NfcStringBuf {
   ptr: std::ptr::NonNull<NfcString>,
+}
+
+impl NfcCmpString {
+  pub fn from_str(s: &str) -> &Self {
+    unsafe { &*(s as *const str as *const NfcCmpString) }
+  }
+}
+
+impl NfcString {
+  pub fn len(&self) -> usize {
+    self.size as usize
+  }
+  pub fn ptr(&self) -> *const u8 {
+    &self.array as *const [u8; 0] as *const u8
+  }
+  pub fn mut_ptr(&mut self) -> *mut u8 {
+    &mut self.array as *mut [u8; 0] as *mut u8
+  }
+
+  pub fn as_str(&self) -> &str {
+    unsafe {
+      let utf8 = std::slice::from_raw_parts(self.ptr(), self.len());
+      std::str::from_utf8_unchecked(utf8)
+    }
+  }
+
+  pub fn as_cstr(&self) -> &ffi::CStr {
+    unsafe {
+      let utf8 = std::slice::from_raw_parts(self.ptr(), self.len() + 1);
+      ffi::CStr::from_bytes_with_nul_unchecked(utf8)
+    }
+  }
+
+  pub fn as_cstr_ptr(&self) -> *const std::os::raw::c_char {
+    self.ptr() as *const _
+  }
 }
 
 impl NfcStringBuf {
@@ -79,53 +112,18 @@ impl Drop for NfcStringBuf {
   }
 }
 
-#[repr(C)]
-pub struct NfcString {
-  size: u32,
-  /*
-    dynamically sized array with size `size`
-    note: _always_ normalized to NFC, and given a null terminator.
-    This invariant is upheld by NfcStringBuf
-  */
-  array: [u8; 0],
-}
+impl Internable for NfcStringBuf {
+  type Borrowed = NfcString;
+  type External = str;
+  type Comparable = NfcCmpString;
 
-impl NfcString {
-  pub fn len(&self) -> usize {
-    self.size as usize
+  fn external_to_cmp(s: &str) -> &NfcCmpString {
+    NfcCmpString::from_str(s)
   }
-  pub fn ptr(&self) -> *const u8 {
-    &self.array as *const [u8; 0] as *const u8
+  fn as_borrowed(&self) -> &NfcString {
+    self
   }
-  pub fn mut_ptr(&mut self) -> *mut u8 {
-    &mut self.array as *mut [u8; 0] as *mut u8
-  }
-
-  pub fn as_str(&self) -> &str {
-    unsafe {
-      let utf8 = std::slice::from_raw_parts(self.ptr(), self.len());
-      std::str::from_utf8_unchecked(utf8)
-    }
-  }
-
-  pub fn as_cstr(&self) -> &ffi::CStr {
-    unsafe {
-      let utf8 = std::slice::from_raw_parts(self.ptr(), self.len() + 1);
-      ffi::CStr::from_bytes_with_nul_unchecked(utf8)
-    }
-  }
-
-  pub fn as_cstr_ptr(&self) -> *const std::os::raw::c_char {
-    self.ptr() as *const _
-  }
-}
-
-pub struct NfcCmpStr(str);
-
-impl NfcCmpStr {
-  pub fn from_str(s: &str) -> &Self {
-    use std::mem;
-
-    unsafe { mem::transmute::<&str, &Self>(s) }
+  fn from_external(s: &str) -> Self {
+    Self::new(s)
   }
 }

@@ -1,5 +1,5 @@
-use crate::IdentInterner;
 use crate::string::NfcString;
+use crate::IdentInterner;
 use unicode_xid::UnicodeXID;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -108,7 +108,7 @@ impl<'s> Lexer<'s> {
       let buff = &buffer[first..last];
       let int = match u64::from_str_radix(buff, base) {
         Ok(i) => i,
-        Err(_) => panic!("ICE: invalid integer literal: {}", buff),
+        Err(e) => panic!("ICE: invalid integer literal: {} ({})", buff, e),
       };
       Token::IntegerLiteral(int)
     };
@@ -177,9 +177,9 @@ impl<'s> Lexer<'s> {
             self.iter.next();
             let kind = match &self.buffer[start..idx] {
               "c" | "C" => StringKind::CString,
-              other => panic!("Unsupported string literal prefix: `{}`", other)
+              other => panic!("Unsupported string literal prefix: `{}`", other),
             };
-            return self.lex_string(kind, intern)
+            return self.lex_string(kind, intern);
           }
           Some(&(idx, _)) => return self.match_identifier(intern, start, idx),
           None => {

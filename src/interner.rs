@@ -1,6 +1,6 @@
-use std::{cell, collections};
 use std::borrow::Borrow;
-use std::cmp::{Ord};
+use std::cmp::Ord;
+use std::{cell, collections};
 
 pub trait Internable: Ord + Borrow<<Self as Internable>::Comparable> {
   type Borrowed: ?Sized;
@@ -18,7 +18,10 @@ pub struct Interner<T> {
   set: cell::UnsafeCell<collections::BTreeSet<T>>,
 }
 
-impl<T> Interner<T> where T: Internable {
+impl<T> Interner<T>
+where
+  T: Internable,
+{
   pub fn new() -> Self {
     Interner {
       set: cell::UnsafeCell::new(collections::BTreeSet::new()),

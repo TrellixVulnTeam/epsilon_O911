@@ -370,10 +370,11 @@ impl<'a> From<Function<'a>> for Value<'a> {
 pub struct ConstValue<'a>(Value<'a>);
 
 impl<'a> ConstValue<'a> {
-  pub fn int(ty: Type<'a>, value: u64, sign_ext: bool) -> Self {
+  pub fn int<T>(ty: Type<'a>, value: T, sign_ext: bool) -> Self
+    where T: Into<u64> {
     unsafe {
       ConstValue(Value {
-        value: LLVMConstInt(ty.ty, value, sign_ext as LLVMBool),
+        value: LLVMConstInt(ty.ty, value.into(), sign_ext as LLVMBool),
         ctxt: PhantomData,
       })
     }
