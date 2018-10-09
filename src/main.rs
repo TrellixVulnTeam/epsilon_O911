@@ -1,3 +1,4 @@
+mod context;
 mod interner;
 #[allow(dead_code)]
 mod llvm;
@@ -9,62 +10,22 @@ use crate::llvm::*;
 use crate::parser::Parser;
 
 const PROGRAM: &str = r#"
-extern func puts() -> Int32;
+extern func ccosf([% _: FloatComplex %]) -> FloatComplex;
+
+[%
+type FloatComplex = struct {
+  x: Float32;
+  y: Float32;
+};
+%]
 
 func main() -> Int32 {
   0
 }
 "#;
 
-mod ctxt {
-  use crate::interner::Interner;
-  use crate::{types, string};
-
-  use std::cell::UnsafeCell;
-
-  pub struct Context {
-    identifiers: Interner<string::NfcStringBuf>,
-    string_literals: UnsafeCell<Vec<String>>,
-    // type_definitions: Vec<types::TypeDefinition>,
-    types: Interner<types::Type<'static>>,
-  }
-
-  impl Context {
-    pub fn new() -> Self {
-      Self {
-        identifiers: Interner::new(),
-        string_literals: UnsafeCell::new(vec![]),
-        types: Interner::new(),
-      }
-    }
-
-    pub fn get_ident(&self, id: &str) -> &string::NfcString {
-      self.identifiers.add_element(id)
-    }
-
-    pub fn get_string_literal(&self, str_lit: &str) -> &str {
-      unsafe {
-        let slit = &mut *self.string_literals.get();
-        let string = str_lit.to_string();
-        slit.push(string);
-        let raw = (&*slit[slit.len() - 1]) as *const str;
-        &*raw
-      }
-    }
-
-    pub fn get_type<'cx>(&'cx self, ty: types::Type<'cx>) -> &'cx types::Type<'cx> {
-      let lt_erased = unsafe {
-        std::mem::transmute::<types::Type<'cx>, types::Type<'static>>(ty)
-      };
-
-      self.types.add_element(&lt_erased)
-    }
-  }
-}
-type Context = ctxt::Context;
-
 fn main() {
-  let ctxt = Context::new();
+  let ctxt = context::Context::new();
   let mut parser = Parser::new(PROGRAM, &ctxt);
 
   while let Some(item) = parser.next_item() {
@@ -73,7 +34,7 @@ fn main() {
 }
 
 #[allow(unused)]
-fn test_llvm(ctxt: &Context) {
+fn test_llvm(ctxt: &context::Context) {
   let llctxt = llvm::Context::new();
 
   let int_ty = Type::int32(&llctxt);

@@ -7,6 +7,7 @@ use llvm_sys::*;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 
+use crate::interner::Interned;
 use crate::string::NfcString;
 
 macro_rules! slice_to_llvm {
@@ -278,7 +279,7 @@ pub struct BasicBlock<'a> {
 
 impl<'a> Function<'a> {
   pub fn new(
-    name: &NfcString,
+    name: Interned<NfcString>,
     ty: FunctionType<'a>,
     ctxt: &'a Context,
   ) -> Self {

@@ -1,9 +1,14 @@
 mod lexer;
 
 use self::lexer::{Lexer, StringKind, Token};
+use crate::context::Context;
+use crate::interner::Interned;
 use crate::string::NfcString;
-use crate::types::Type;
-use crate::Context;
+
+#[derive(Debug)]
+pub enum Type<'cx> {
+  Named(Interned<'cx, NfcString>),
+}
 
 pub struct Parser<'cx, 's> {
   lexer: Lexer<'s>,
@@ -13,8 +18,8 @@ pub struct Parser<'cx, 's> {
 
 #[derive(Debug)]
 pub struct FunctionDecl<'cx> {
-  name: &'cx NfcString,
-  ret_ty: &'cx Type<'cx>,
+  name: Interned<'cx, NfcString>,
+  ret_ty: Type<'cx>,
 }
 
 #[derive(Debug)]
@@ -32,7 +37,7 @@ pub enum Item<'cx> {
 #[derive(Debug)]
 pub enum Expression<'cx> {
   IntegerLiteral(u64),
-  Name(&'cx NfcString),
+  Name(Interned<'cx, NfcString>),
   StringLiteral(StringKind, &'cx str),
 }
 
@@ -47,10 +52,14 @@ impl<'cx, 's> Parser<'cx, 's> {
   }
 
   fn next_token(&mut self) -> Token<'cx> {
-    match self.peek.take() {
+    let ret = match self.peek.take() {
       Some(tok) => tok,
       None => self.lexer.next_token(&self.ctxt),
-    }
+    };
+
+    //println!("{:?}", ret);
+
+    ret
   }
 
   fn peek_token(&mut self) -> Token<'cx> {
@@ -64,7 +73,7 @@ impl<'cx, 's> Parser<'cx, 's> {
     }
   }
 
-  fn get_ident(&mut self) -> &'cx NfcString {
+  fn get_ident(&mut self) -> Interned<'cx, NfcString> {
     match self.next_token() {
       Token::Identifier(s) => s,
       tok => panic!("Expected ident, found {:?}", tok),
@@ -78,6 +87,13 @@ impl<'cx, 's> Parser<'cx, 's> {
     }
   }
 
+  fn parse_type(&mut self) -> Type<'cx> {
+    match self.next_token() {
+      Token::Identifier(s) => Type::Named(s),
+      tok => panic!("Expected type, found {:?}", tok),
+    }
+  }
+
   fn parse_expression(&mut self) -> Expression<'cx> {
     match self.next_token() {
       Token::IntegerLiteral(i) => Expression::IntegerLiteral(i),
@@ -88,27 +104,11 @@ impl<'cx, 's> Parser<'cx, 's> {
   }
 
   fn parse_function_decl(&mut self) -> FunctionDecl<'cx> {
-    use crate::types::{Type, IntSize};
-
     let name = self.get_ident();
     let () = self.eat_token(Token::OpenParen);
     let () = self.eat_token(Token::CloseParen);
     let () = self.eat_token(Token::Arrow);
-    let ret_ty = self.get_ident();
-
-    let ret_ty = match ret_ty.as_str() {
-      "UInt8" => self.ctxt.get_type(Type::UnsignedInt { size: IntSize::I8 }),
-      "UInt16" => self.ctxt.get_type(Type::UnsignedInt { size: IntSize::I16 }),
-      "UInt32" => self.ctxt.get_type(Type::UnsignedInt { size: IntSize::I32 }),
-      "UInt64" => self.ctxt.get_type(Type::UnsignedInt { size: IntSize::I64 }),
-      "UInt" => self.ctxt.get_type(Type::UnsignedInt { size: IntSize::ISize }),
-      "Int8" => self.ctxt.get_type(Type::SignedInt { size: IntSize::I8 }),
-      "Int16" => self.ctxt.get_type(Type::SignedInt { size: IntSize::I16 }),
-      "Int32" => self.ctxt.get_type(Type::SignedInt { size: IntSize::I32 }),
-      "Int64" => self.ctxt.get_type(Type::SignedInt { size: IntSize::I64 }),
-      "Int" => self.ctxt.get_type(Type::SignedInt { size: IntSize::ISize }),
-      ty => panic!("unrecognized type: {}", ty)
-    };
+    let ret_ty = self.parse_type();
 
     FunctionDecl { name, ret_ty }
   }

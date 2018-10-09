@@ -1,5 +1,6 @@
+use crate::context::Context;
+use crate::interner::Interned;
 use crate::string::NfcString;
-use crate::Context;
 use unicode_xid::UnicodeXID;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -9,8 +10,8 @@ pub enum Token<'cx> {
   IntegerLiteral(u64),
   StringLiteral(StringKind, &'cx str),
 
-  Operator(&'cx NfcString),
-  Identifier(&'cx NfcString),
+  Operator(Interned<'cx, NfcString>),
+  Identifier(Interned<'cx, NfcString>),
 
   Arrow,
   KeywordFunc,
@@ -154,6 +155,33 @@ impl<'s> Lexer<'s> {
     }
   }
 
+  /*
+    note: put the iterator after the % of the opening
+    [% comment comment comment %]
+      ^ here
+  */
+  fn block_comment(&mut self) {
+    loop {
+      match self.iter.next() {
+        Some((_, '%')) => match self.iter.peek() {
+          Some((_, ']')) => {
+            self.iter.next();
+            break
+          },
+          _ => (),
+        },
+        Some((_, '[')) => match self.iter.peek() {
+          Some((_, '%')) => {
+            self.iter.next();
+            self.block_comment()
+          }
+          _ => (),
+        },
+        _ => (),
+      }
+    }
+  }
+
   pub fn next_token<'cx>(&mut self, ctxt: &'cx Context) -> Token<'cx> {
     match self.iter.next() {
       None => Token::Eof,
@@ -163,6 +191,16 @@ impl<'s> Lexer<'s> {
       Some((_, ')')) => Token::CloseParen,
       Some((_, '{')) => Token::OpenBrace,
       Some((_, '}')) => Token::CloseBrace,
+      Some((_, '[')) => {
+        match self.iter.peek() {
+          Some((_, '%')) => {
+            self.iter.next();
+            self.block_comment();
+            self.next_token(ctxt)
+          }
+          _ => panic!("`[` and `]` are not yet supported")
+        }
+      }
       Some((_, '"')) => self.lex_string(StringKind::Normal, ctxt),
       Some((_, ch)) if ch.is_whitespace() => loop {
         match self.iter.peek() {

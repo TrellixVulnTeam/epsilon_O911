@@ -1,4 +1,4 @@
-use std::{borrow, cmp, fmt, ops};
+use std::{borrow, cmp, fmt, ops, hash};
 
 use unicode_normalization::UnicodeNormalization;
 
@@ -199,5 +199,19 @@ impl cmp::PartialOrd<NfcCmpString> for NfcStringBuf {
 impl cmp::PartialOrd<NfcStringBuf> for NfcCmpString {
   fn partial_cmp(&self, other: &NfcStringBuf) -> Option<cmp::Ordering> {
     other.partial_cmp(self)
+  }
+}
+
+// HASH IMPLS
+
+impl hash::Hash for NfcString {
+  fn hash<H: hash::Hasher>(&self, h: &mut H) {
+    self.as_str().hash(h)
+  }
+}
+
+impl hash::Hash for NfcStringBuf {
+  fn hash<H: hash::Hasher>(&self, h: &mut H) {
+    (**self).hash(h)
   }
 }
