@@ -1,16 +1,16 @@
 use crate::string::NfcString;
-use crate::IdentInterner;
+use crate::Context;
 use unicode_xid::UnicodeXID;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Token<'i> {
+pub enum Token<'cx> {
   Eof,
 
   IntegerLiteral(u64),
-  StringLiteral(StringKind, &'i NfcString),
+  StringLiteral(StringKind, &'cx str),
 
-  Operator(&'i NfcString),
-  Identifier(&'i NfcString),
+  Operator(&'cx NfcString),
+  Identifier(&'cx NfcString),
 
   Arrow,
   KeywordFunc,
@@ -71,13 +71,13 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  fn match_identifier<'i>(
+  fn match_identifier<'cx>(
     &self,
-    intern: &'i IdentInterner,
+    ctxt: &'cx Context,
     first: usize,
     last: usize,
-  ) -> Token<'i> {
-    let ident = intern.add_element(&self.buffer[first..last]);
+  ) -> Token<'cx> {
+    let ident = ctxt.get_ident(&self.buffer[first..last]);
     match ident.as_str() {
       "_" => Token::KeywordUnderscore,
       "func" => Token::KeywordFunc,
@@ -86,23 +86,23 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  fn match_operator<'i>(
+  fn match_operator<'cx>(
     &self,
-    intern: &'i IdentInterner,
+    ctxt: &'cx Context,
     first: usize,
     last: usize,
-  ) -> Token<'i> {
+  ) -> Token<'cx> {
     let ident = &self.buffer[first..last];
     match ident {
       "->" => Token::Arrow,
       _ => {
-        let id = intern.add_element(ident);
+        let id = ctxt.get_ident(ident);
         Token::Operator(id)
       }
     }
   }
 
-  fn lex_number<'i>(&mut self, first: usize, base: u32) -> Token<'i> {
+  fn lex_number<'cx>(&mut self, first: usize, base: u32) -> Token<'cx> {
     let buffer = &self.buffer;
     let helper = move |last| {
       let buff = &buffer[first..last];
@@ -131,11 +131,11 @@ impl<'s> Lexer<'s> {
     i.e., for "Hello", the iterator should be at
                ^
   */
-  fn lex_string<'i>(
+  fn lex_string<'cx>(
     &mut self,
     kind: StringKind,
-    intern: &'i IdentInterner,
-  ) -> Token<'i> {
+    ctxt: &'cx Context,
+  ) -> Token<'cx> {
     let start = match self.iter.peek() {
       Some(&(idx, _)) => idx,
       None => panic!("Unexpected EOF"),
@@ -145,7 +145,7 @@ impl<'s> Lexer<'s> {
       match self.iter.next() {
         Some((last, '"')) => {
           let s = &self.buffer[start..last];
-          return Token::StringLiteral(kind, intern.add_element(s));
+          return Token::StringLiteral(kind, ctxt.get_string_literal(s));
         }
         Some((_, '\\')) => panic!("escapes not yet supported"),
         Some(_) => (),
@@ -154,7 +154,7 @@ impl<'s> Lexer<'s> {
     }
   }
 
-  pub fn next_token<'i>(&mut self, intern: &'i IdentInterner) -> Token<'i> {
+  pub fn next_token<'cx>(&mut self, ctxt: &'cx Context) -> Token<'cx> {
     match self.iter.next() {
       None => Token::Eof,
       Some((_, ':')) => Token::Colon,
@@ -163,11 +163,11 @@ impl<'s> Lexer<'s> {
       Some((_, ')')) => Token::CloseParen,
       Some((_, '{')) => Token::OpenBrace,
       Some((_, '}')) => Token::CloseBrace,
-      Some((_, '"')) => self.lex_string(StringKind::Normal, intern),
+      Some((_, '"')) => self.lex_string(StringKind::Normal, ctxt),
       Some((_, ch)) if ch.is_whitespace() => loop {
         match self.iter.peek() {
           Some(&(_, ch)) if ch.is_whitespace() => self.iter.next(),
-          _ => return self.next_token(intern),
+          _ => return self.next_token(ctxt),
         };
       },
       Some((start, ch)) if is_ident_start(ch) => loop {
@@ -179,19 +179,17 @@ impl<'s> Lexer<'s> {
               "c" | "C" => StringKind::CString,
               other => panic!("Unsupported string literal prefix: `{}`", other),
             };
-            return self.lex_string(kind, intern);
+            return self.lex_string(kind, ctxt);
           }
-          Some(&(idx, _)) => return self.match_identifier(intern, start, idx),
-          None => {
-            return self.match_identifier(intern, start, self.buffer.len())
-          }
+          Some(&(idx, _)) => return self.match_identifier(ctxt, start, idx),
+          None => return self.match_identifier(ctxt, start, self.buffer.len()),
         };
       },
       Some((start, ch)) if is_operator_start(ch) => loop {
         match self.iter.peek() {
           Some(&(_, ch)) if is_operator_continue(ch) => self.iter.next(),
-          Some(&(idx, _)) => return self.match_operator(intern, start, idx),
-          None => return self.match_operator(intern, start, self.buffer.len()),
+          Some(&(idx, _)) => return self.match_operator(ctxt, start, idx),
+          None => return self.match_operator(ctxt, start, self.buffer.len()),
         };
       },
       Some((start0, ch0)) if ch0.is_digit(10) => match self.iter.peek() {

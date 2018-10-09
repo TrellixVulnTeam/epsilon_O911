@@ -371,7 +371,9 @@ pub struct ConstValue<'a>(Value<'a>);
 
 impl<'a> ConstValue<'a> {
   pub fn int<T>(ty: Type<'a>, value: T, sign_ext: bool) -> Self
-    where T: Into<u64> {
+  where
+    T: Into<u64>,
+  {
     unsafe {
       ConstValue(Value {
         value: LLVMConstInt(ty.ty, value.into(), sign_ext as LLVMBool),
