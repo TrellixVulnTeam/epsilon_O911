@@ -408,7 +408,7 @@ impl<'a> ConstValue<'a> {
         LLVMAddGlobal(ctxt.module, LLVMTypeOf(init.0.value), cstr!(""));
       LLVMSetInitializer(glob_ptr, init.0.value);
       LLVMSetGlobalConstant(glob_ptr, LLVMTrue);
-      LLVMSetUnnamedAddr(glob_ptr, LLVMTrue);
+      LLVMSetUnnamedAddress(glob_ptr, LLVMUnnamedAddr::LLVMGlobalUnnamedAddr);
       LLVMSetLinkage(glob_ptr, LLVMLinkage::LLVMPrivateLinkage);
 
       ConstValue(Value {

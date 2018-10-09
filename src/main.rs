@@ -24,6 +24,8 @@ fn main() {
   while let Some(item) = parser.next_item() {
     println!("{:?}", item)
   }
+
+  test_llvm(&intern);
 }
 
 #[allow(unused)]

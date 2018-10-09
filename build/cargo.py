@@ -21,7 +21,6 @@ def build(args):
     assert False
 
   if args.extra_cargo_arguments:
-    cmd.append("--")
     cmd.extend(args.extra_cargo_arguments)
 
   os.environ[LLVM_SYS_ENV_VAR] = install_path(args)

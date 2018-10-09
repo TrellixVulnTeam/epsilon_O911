@@ -9,9 +9,10 @@ from urllib.request import urlopen
 
 import platform
 
-LLVM_SRC_DIR = "llvm-6.0.1.src"
-LLVM_URL = f"https://releases.llvm.org/6.0.1/{LLVM_SRC_DIR}.tar.xz"
-LLVM_SYS_ENV_VAR = "LLVM_SYS_60_PREFIX"
+LLVM_VER = "7.0.0"
+LLVM_SRC_DIR = f"llvm-{LLVM_VER}.src"
+LLVM_URL = f"https://releases.llvm.org/{LLVM_VER}/{LLVM_SRC_DIR}.tar.xz"
+LLVM_SYS_ENV_VAR = "LLVM_SYS_70_PREFIX"
 
 LLVM_PATH = path.join(os.getcwd(), "llvm")
 LLVM_SOURCE_PATH = path.join(LLVM_PATH, "source")
