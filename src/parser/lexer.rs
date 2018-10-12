@@ -1,4 +1,5 @@
-use crate::context::Context;
+use super::Context;
+
 use crate::interner::Interned;
 use crate::string::NfcString;
 use unicode_xid::UnicodeXID;

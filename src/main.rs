@@ -1,13 +1,13 @@
-mod context;
 mod interner;
 #[allow(dead_code)]
 mod llvm;
+mod module;
 mod parser;
 mod string;
-mod types;
 
 use crate::llvm::*;
 use crate::parser::Parser;
+use crate::module::Module;
 
 const PROGRAM: &str = r#"
 extern func ccosf([% _: FloatComplex %]) -> FloatComplex;
@@ -25,16 +25,15 @@ func main() -> Int32 {
 "#;
 
 fn main() {
-  let ctxt = context::Context::new();
-  let mut parser = Parser::new(PROGRAM, &ctxt);
+  let parse_ctxt = parser::Context::new();
+  let parser = Parser::new(PROGRAM, &parse_ctxt);
 
-  while let Some(item) = parser.next_item() {
-    println!("{:?}", item)
-  }
+  let module_ctxt = module::Context::new(&parse_ctxt);
+  let _module = Module::new(parser, &module_ctxt);
 }
 
 #[allow(unused)]
-fn test_llvm(ctxt: &context::Context) {
+fn test_llvm(ctxt: &parser::Context) {
   let llctxt = llvm::Context::new();
 
   let int_ty = Type::int32(&llctxt);

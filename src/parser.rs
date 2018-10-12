@@ -1,9 +1,9 @@
 mod lexer;
 
 use self::lexer::{Lexer, StringKind, Token};
-use crate::context::Context;
-use crate::interner::Interned;
-use crate::string::NfcString;
+
+use crate::interner::{Interned, Interner};
+use crate::string::{self, NfcString};
 
 #[derive(Debug)]
 pub enum Type<'cx> {
@@ -39,6 +39,36 @@ pub enum Expression<'cx> {
   IntegerLiteral(u64),
   Name(Interned<'cx, NfcString>),
   StringLiteral(StringKind, &'cx str),
+}
+
+use std::cell::UnsafeCell;
+
+pub struct Context {
+  identifiers: Interner<string::NfcStringBuf>,
+  string_literals: UnsafeCell<Vec<String>>,
+}
+
+impl Context {
+  pub fn new() -> Self {
+    Self {
+      identifiers: Interner::new(),
+      string_literals: UnsafeCell::new(vec![]),
+    }
+  }
+
+  pub fn get_ident(&self, id: &str) -> Interned<string::NfcString> {
+    self.identifiers.add_element(id)
+  }
+
+  pub fn get_string_literal(&self, str_lit: &str) -> &str {
+    unsafe {
+      let slit = &mut *self.string_literals.get();
+      let string = str_lit.to_string();
+      slit.push(string);
+      let raw = (&*slit[slit.len() - 1]) as *const str;
+      &*raw
+    }
+  }
 }
 
 impl<'cx, 's> Parser<'cx, 's> {
