@@ -1,5 +1,5 @@
 [package]
-name = "newt"
+name = "epsilon"
 version = "0.1.0"
 authors = ["Nicole Mazzuca <npmazzuca@gmail.com>"]
 license = "Apache-2.0"
